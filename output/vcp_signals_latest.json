@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-06-02T11:35:37.033872",
+  "scanned": 500,
+  "vcp_found": 3,
+  "top_signals": [
+    {
+      "ticker": "AIRT",
+      "vcp_detected": "True",
+      "vcp_quality": 0.8701,
+      "contractions": 3,
+      "pivot_price": 22.5,
+      "pivot_volatility_pct": 0.0195,
+      "volume_dry_up_ratio": 0.3922,
+      "range_contraction_ratio": 0.5807,
+      "stop_suggestion": 20.7,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "ULTRA_TIGHT",
+        "VOL_DRY_UP",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=87% waves=3 pivot_ATR=1.9% vol_dry=39% range_ratio=58%"
+    },
+    {
+      "ticker": "ACCL",
+      "vcp_detected": "True",
+      "vcp_quality": 0.6777,
+      "contractions": 3,
+      "pivot_price": 1.45,
+      "pivot_volatility_pct": 0.0384,
+      "volume_dry_up_ratio": 0.4748,
+      "range_contraction_ratio": 0.0864,
+      "stop_suggestion": 1.33,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "VOL_DRY_UP",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=68% waves=3 pivot_ATR=3.8% vol_dry=47% range_ratio=9%"
+    },
+    {
+      "ticker": "ACB",
+      "vcp_detected": "True",
+      "vcp_quality": 0.5982,
+      "contractions": 3,
+      "pivot_price": 3.64,
+      "pivot_volatility_pct": 0.0365,
+      "volume_dry_up_ratio": 0.6151,
+      "range_contraction_ratio": 0.4819,
+      "stop_suggestion": 3.35,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=60% waves=3 pivot_ATR=3.6% vol_dry=62% range_ratio=48%"
+    }
+  ],
+  "all_signals": [
+    {
+      "ticker": "AIRT",
+      "vcp_detected": "True",
+      "vcp_quality": 0.8701,
+      "contractions": 3,
+      "pivot_price": 22.5,
+      "pivot_volatility_pct": 0.0195,
+      "volume_dry_up_ratio": 0.3922,
+      "range_contraction_ratio": 0.5807,
+      "stop_suggestion": 20.7,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "ULTRA_TIGHT",
+        "VOL_DRY_UP",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=87% waves=3 pivot_ATR=1.9% vol_dry=39% range_ratio=58%"
+    },
+    {
+      "ticker": "ACCL",
+      "vcp_detected": "True",
+      "vcp_quality": 0.6777,
+      "contractions": 3,
+      "pivot_price": 1.45,
+      "pivot_volatility_pct": 0.0384,
+      "volume_dry_up_ratio": 0.4748,
+      "range_contraction_ratio": 0.0864,
+      "stop_suggestion": 1.33,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "VOL_DRY_UP",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=68% waves=3 pivot_ATR=3.8% vol_dry=47% range_ratio=9%"
+    },
+    {
+      "ticker": "ACB",
+      "vcp_detected": "True",
+      "vcp_quality": 0.5982,
+      "contractions": 3,
+      "pivot_price": 3.64,
+      "pivot_volatility_pct": 0.0365,
+      "volume_dry_up_ratio": 0.6151,
+      "range_contraction_ratio": 0.4819,
+      "stop_suggestion": 3.35,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=60% waves=3 pivot_ATR=3.6% vol_dry=62% range_ratio=48%"
+    }
+  ]
+}
