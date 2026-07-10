@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-07-09T10:25:34.366457",
+  "timestamp": "2026-07-10T09:30:14.394239",
   "scanned": 500,
   "vcp_found": 6,
   "top_signals": [
     {
       "ticker": "ARCC",
       "vcp_detected": "True",
-      "vcp_quality": 0.7895,
+      "vcp_quality": 0.8117,
       "contractions": 3,
-      "pivot_price": 18.38,
-      "pivot_volatility_pct": 0.0175,
-      "volume_dry_up_ratio": 0.8839,
+      "pivot_price": 18.41,
+      "pivot_volatility_pct": 0.0166,
+      "volume_dry_up_ratio": 0.8284,
       "range_contraction_ratio": 0.4178,
-      "stop_suggestion": 16.91,
+      "stop_suggestion": 16.94,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -20,37 +20,18 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=79% waves=3 pivot_ATR=1.7% vol_dry=88% range_ratio=42%"
+      "rationale": "VCP \u2713 Q=81% waves=3 pivot_ATR=1.7% vol_dry=83% range_ratio=42%"
     },
     {
-      "ticker": "AES",
+      "ticker": "AM",
       "vcp_detected": "True",
-      "vcp_quality": 0.7727,
+      "vcp_quality": 0.7468,
       "contractions": 3,
-      "pivot_price": 14.64,
-      "pivot_volatility_pct": 0.0048,
-      "volume_dry_up_ratio": 0.9951,
-      "range_contraction_ratio": 0.1132,
-      "stop_suggestion": 13.47,
-      "stop_pct": 0.08,
-      "signals": [
-        "VCP_3c",
-        "ULTRA_TIGHT",
-        "RANGE_HALVED",
-        "VCP_CONFIRMED"
-      ],
-      "rationale": "VCP \u2713 Q=77% waves=3 pivot_ATR=0.5% vol_dry=100% range_ratio=11%"
-    },
-    {
-      "ticker": "AMX",
-      "vcp_detected": "True",
-      "vcp_quality": 0.6547,
-      "contractions": 3,
-      "pivot_price": 26.41,
-      "pivot_volatility_pct": 0.0227,
-      "volume_dry_up_ratio": 1.0564,
-      "range_contraction_ratio": 0.4581,
-      "stop_suggestion": 24.3,
+      "pivot_price": 22.58,
+      "pivot_volatility_pct": 0.0243,
+      "volume_dry_up_ratio": 0.8145,
+      "range_contraction_ratio": 0.3124,
+      "stop_suggestion": 20.77,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -58,18 +39,37 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=65% waves=3 pivot_ATR=2.3% vol_dry=106% range_ratio=46%"
+      "rationale": "VCP \u2713 Q=75% waves=3 pivot_ATR=2.4% vol_dry=81% range_ratio=31%"
+    },
+    {
+      "ticker": "AMX",
+      "vcp_detected": "True",
+      "vcp_quality": 0.6476,
+      "contractions": 3,
+      "pivot_price": 25.84,
+      "pivot_volatility_pct": 0.0237,
+      "volume_dry_up_ratio": 1.0766,
+      "range_contraction_ratio": 0.4581,
+      "stop_suggestion": 23.77,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=65% waves=3 pivot_ATR=2.4% vol_dry=108% range_ratio=46%"
     },
     {
       "ticker": "AHT",
       "vcp_detected": "True",
-      "vcp_quality": 0.623,
+      "vcp_quality": 0.6218,
       "contractions": 3,
-      "pivot_price": 3.15,
-      "pivot_volatility_pct": 0.0329,
-      "volume_dry_up_ratio": 0.7311,
+      "pivot_price": 3.21,
+      "pivot_volatility_pct": 0.0332,
+      "volume_dry_up_ratio": 0.729,
       "range_contraction_ratio": 0.2735,
-      "stop_suggestion": 2.9,
+      "stop_suggestion": 2.95,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -82,13 +82,13 @@
     {
       "ticker": "ACFN",
       "vcp_detected": "True",
-      "vcp_quality": 0.5376,
+      "vcp_quality": 0.5641,
       "contractions": 3,
-      "pivot_price": 16.79,
-      "pivot_volatility_pct": 0.0366,
-      "volume_dry_up_ratio": 0.8513,
-      "range_contraction_ratio": 0.4445,
-      "stop_suggestion": 15.45,
+      "pivot_price": 16.91,
+      "pivot_volatility_pct": 0.034,
+      "volume_dry_up_ratio": 0.8548,
+      "range_contraction_ratio": 0.4261,
+      "stop_suggestion": 15.56,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -96,18 +96,18 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=54% waves=3 pivot_ATR=3.7% vol_dry=85% range_ratio=44%"
+      "rationale": "VCP \u2713 Q=56% waves=3 pivot_ATR=3.4% vol_dry=85% range_ratio=43%"
     },
     {
       "ticker": "ANIK",
       "vcp_detected": "True",
-      "vcp_quality": 0.5244,
+      "vcp_quality": 0.5489,
       "contractions": 3,
-      "pivot_price": 16.34,
-      "pivot_volatility_pct": 0.0357,
-      "volume_dry_up_ratio": 0.9828,
-      "range_contraction_ratio": 0.3117,
-      "stop_suggestion": 15.03,
+      "pivot_price": 16.09,
+      "pivot_volatility_pct": 0.0372,
+      "volume_dry_up_ratio": 0.8936,
+      "range_contraction_ratio": 0.2966,
+      "stop_suggestion": 14.8,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -115,20 +115,20 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=52% waves=3 pivot_ATR=3.6% vol_dry=98% range_ratio=31%"
+      "rationale": "VCP \u2713 Q=55% waves=3 pivot_ATR=3.7% vol_dry=89% range_ratio=30%"
     }
   ],
   "all_signals": [
     {
       "ticker": "ARCC",
       "vcp_detected": "True",
-      "vcp_quality": 0.7895,
+      "vcp_quality": 0.8117,
       "contractions": 3,
-      "pivot_price": 18.38,
-      "pivot_volatility_pct": 0.0175,
-      "volume_dry_up_ratio": 0.8839,
+      "pivot_price": 18.41,
+      "pivot_volatility_pct": 0.0166,
+      "volume_dry_up_ratio": 0.8284,
       "range_contraction_ratio": 0.4178,
-      "stop_suggestion": 16.91,
+      "stop_suggestion": 16.94,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -136,37 +136,18 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=79% waves=3 pivot_ATR=1.7% vol_dry=88% range_ratio=42%"
+      "rationale": "VCP \u2713 Q=81% waves=3 pivot_ATR=1.7% vol_dry=83% range_ratio=42%"
     },
     {
-      "ticker": "AES",
+      "ticker": "AM",
       "vcp_detected": "True",
-      "vcp_quality": 0.7727,
+      "vcp_quality": 0.7468,
       "contractions": 3,
-      "pivot_price": 14.64,
-      "pivot_volatility_pct": 0.0048,
-      "volume_dry_up_ratio": 0.9951,
-      "range_contraction_ratio": 0.1132,
-      "stop_suggestion": 13.47,
-      "stop_pct": 0.08,
-      "signals": [
-        "VCP_3c",
-        "ULTRA_TIGHT",
-        "RANGE_HALVED",
-        "VCP_CONFIRMED"
-      ],
-      "rationale": "VCP \u2713 Q=77% waves=3 pivot_ATR=0.5% vol_dry=100% range_ratio=11%"
-    },
-    {
-      "ticker": "AMX",
-      "vcp_detected": "True",
-      "vcp_quality": 0.6547,
-      "contractions": 3,
-      "pivot_price": 26.41,
-      "pivot_volatility_pct": 0.0227,
-      "volume_dry_up_ratio": 1.0564,
-      "range_contraction_ratio": 0.4581,
-      "stop_suggestion": 24.3,
+      "pivot_price": 22.58,
+      "pivot_volatility_pct": 0.0243,
+      "volume_dry_up_ratio": 0.8145,
+      "range_contraction_ratio": 0.3124,
+      "stop_suggestion": 20.77,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -174,18 +155,37 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=65% waves=3 pivot_ATR=2.3% vol_dry=106% range_ratio=46%"
+      "rationale": "VCP \u2713 Q=75% waves=3 pivot_ATR=2.4% vol_dry=81% range_ratio=31%"
+    },
+    {
+      "ticker": "AMX",
+      "vcp_detected": "True",
+      "vcp_quality": 0.6476,
+      "contractions": 3,
+      "pivot_price": 25.84,
+      "pivot_volatility_pct": 0.0237,
+      "volume_dry_up_ratio": 1.0766,
+      "range_contraction_ratio": 0.4581,
+      "stop_suggestion": 23.77,
+      "stop_pct": 0.08,
+      "signals": [
+        "VCP_3c",
+        "TIGHT_PIVOT",
+        "RANGE_HALVED",
+        "VCP_CONFIRMED"
+      ],
+      "rationale": "VCP \u2713 Q=65% waves=3 pivot_ATR=2.4% vol_dry=108% range_ratio=46%"
     },
     {
       "ticker": "AHT",
       "vcp_detected": "True",
-      "vcp_quality": 0.623,
+      "vcp_quality": 0.6218,
       "contractions": 3,
-      "pivot_price": 3.15,
-      "pivot_volatility_pct": 0.0329,
-      "volume_dry_up_ratio": 0.7311,
+      "pivot_price": 3.21,
+      "pivot_volatility_pct": 0.0332,
+      "volume_dry_up_ratio": 0.729,
       "range_contraction_ratio": 0.2735,
-      "stop_suggestion": 2.9,
+      "stop_suggestion": 2.95,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -198,13 +198,13 @@
     {
       "ticker": "ACFN",
       "vcp_detected": "True",
-      "vcp_quality": 0.5376,
+      "vcp_quality": 0.5641,
       "contractions": 3,
-      "pivot_price": 16.79,
-      "pivot_volatility_pct": 0.0366,
-      "volume_dry_up_ratio": 0.8513,
-      "range_contraction_ratio": 0.4445,
-      "stop_suggestion": 15.45,
+      "pivot_price": 16.91,
+      "pivot_volatility_pct": 0.034,
+      "volume_dry_up_ratio": 0.8548,
+      "range_contraction_ratio": 0.4261,
+      "stop_suggestion": 15.56,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -212,18 +212,18 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=54% waves=3 pivot_ATR=3.7% vol_dry=85% range_ratio=44%"
+      "rationale": "VCP \u2713 Q=56% waves=3 pivot_ATR=3.4% vol_dry=85% range_ratio=43%"
     },
     {
       "ticker": "ANIK",
       "vcp_detected": "True",
-      "vcp_quality": 0.5244,
+      "vcp_quality": 0.5489,
       "contractions": 3,
-      "pivot_price": 16.34,
-      "pivot_volatility_pct": 0.0357,
-      "volume_dry_up_ratio": 0.9828,
-      "range_contraction_ratio": 0.3117,
-      "stop_suggestion": 15.03,
+      "pivot_price": 16.09,
+      "pivot_volatility_pct": 0.0372,
+      "volume_dry_up_ratio": 0.8936,
+      "range_contraction_ratio": 0.2966,
+      "stop_suggestion": 14.8,
       "stop_pct": 0.08,
       "signals": [
         "VCP_3c",
@@ -231,7 +231,7 @@
         "RANGE_HALVED",
         "VCP_CONFIRMED"
       ],
-      "rationale": "VCP \u2713 Q=52% waves=3 pivot_ATR=3.6% vol_dry=98% range_ratio=31%"
+      "rationale": "VCP \u2713 Q=55% waves=3 pivot_ATR=3.7% vol_dry=89% range_ratio=30%"
     }
   ]
 }
