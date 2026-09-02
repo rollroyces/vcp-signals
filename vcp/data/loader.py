@@ -40,6 +40,7 @@ def load_price_data(ticker: str, period: str = "1y") -> pd.DataFrame | None:
             if getattr(hist.index, "tz", None) is not None:
                 hist = hist.copy()
                 hist.index = hist.index.tz_localize(None)
+            hist = _canonicalize_columns(hist)
             return hist
     except Exception:
         pass
@@ -74,6 +75,33 @@ def _load_from_cache(ticker: str) -> pd.DataFrame | None:
             except Exception:
                 return None
     return None
+
+
+def _canonicalize_columns(hist: pd.DataFrame) -> pd.DataFrame:
+    """Map any-case OHLCV columns to the canonical capitalized set.
+
+    yfinance 1.7+ returns ``Open/High/Low/close/Adj close/Volume`` (note the
+    lowercase ``close``); older versions returned all-uppercase. Some CSV
+    exports also lowercase everything. We normalize to ``Open/High/Low/Close/
+    Volume`` and drop the adjustment/dividend/split columns so callers don't
+    trip over inconsistent naming.
+    """
+    if hist is None or hist.empty:
+        return hist
+    cols = {c.lower(): c for c in hist.columns}
+    rename = {}
+    for want in ("Open", "High", "Low", "Close", "Volume"):
+        if want in hist.columns:
+            continue
+        if want.lower() in cols:
+            rename[cols[want.lower()]] = want
+    if rename:
+        hist = hist.rename(columns=rename)
+    drop_extras = [c for c in hist.columns if c not in
+                   ("Open", "High", "Low", "Close", "Volume")]
+    if drop_extras:
+        hist = hist.drop(columns=drop_extras)
+    return hist
 
 
 def get_ticker_list(source: str = "auto") -> list[str]:

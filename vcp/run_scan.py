@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
 VCP Signal Scanner — standalone runner.
+
+Emits a JSON scan report containing BOTH the detected-VCP cohort and the
+non-detected (insufficient-data / failed-quality-check) cohort, so downstream
+validation can measure filter effectiveness. The non-detected cohort is the
+control group; without it we can only measure "did these specific names do OK"
+not "did the filter add edge".
 """
 import json
 import logging
@@ -27,19 +33,32 @@ SCAN_LIMIT = 500
 
 
 def scan_single(ticker: str) -> dict | None:
+    """Run VCP analysis on one ticker.
+
+    Returns a dict describing the result regardless of vcp_detected. A None
+    return means we couldn't even fetch data for the ticker — distinct from
+    "ran analysis, didn't detect a pattern", which still produces a dict with
+    vcp_detected=False and a populated rationale.
+    """
     hist = load_price_data(ticker)
     if hist is None:
         return None
-    current_price = hist["Close"].iloc[-1]
+    current_price = float(hist["Close"].iloc[-1])
     result = analyze_vcp(ticker, hist, current_price, config=VC)
-    if result and result.vcp_detected:
-        return result.to_dict()
-    return None
+    if result is None:
+        return None
+    d = result.to_dict()
+    # Distinguish "ran but failed quality" from "insufficient history". The
+    # detector's rationale already encodes this; we also expose it as a flag
+    # so JSON consumers don't have to grep the rationale string.
+    d["data_ok"] = True
+    return d
 
 
 def scan_batch(tickers: list[str], workers: int = 12) -> list[dict]:
+    """Run the detector on every ticker, emitting detected AND non-detected rows."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    results: list[dict] = []
+    all_results: list[dict] = []
     total = len(tickers)
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -47,15 +66,20 @@ def scan_batch(tickers: list[str], workers: int = 12) -> list[dict]:
         for done, f in enumerate(as_completed(futures), 1):
             if done % 100 == 0 or done == total:
                 elapsed = time.time() - t0
-                logger.info(f"Progress: {done}/{total} ({done / elapsed:.0f}/s, {len(results)} VCP)")
+                logger.info(
+                    f"Progress: {done}/{total} ({done / elapsed:.0f}/s, "
+                    f"{sum(1 for r in all_results if r.get('vcp_detected'))} VCP)"
+                )
             try:
                 r = f.result()
-                if r:
-                    results.append(r)
+                if r is not None:
+                    all_results.append(r)
             except Exception:
                 pass
-    results.sort(key=lambda r: r.get("vcp_quality", 0), reverse=True)
-    return results
+    # Sort by quality descending; non-detected rows have vcp_quality=0 and
+    # sink to the bottom, but we keep them.
+    all_results.sort(key=lambda r: r.get("vcp_quality", 0.0), reverse=True)
+    return all_results
 
 
 def main():
@@ -86,19 +110,23 @@ def main():
 
     t_start = time.time()
     logger.info(f"Scanning {len(tickers)} tickers for VCP patterns...")
-    results = scan_batch(tickers, workers=args.workers)
+    all_results = scan_batch(tickers, workers=args.workers)
+    detected = [r for r in all_results if r.get("vcp_detected")]
     elapsed = time.time() - t_start
 
     logger.info(f"\n{'=' * 60}")
     logger.info("VCP SCAN COMPLETE")
-    logger.info(f"  Scanned:  {len(tickers)}")
-    logger.info(f"  VCP found: {len(results)} ({len(results) / max(len(tickers), 1) * 100:.1f}%)")
-    logger.info(f"  Elapsed:  {elapsed:.1f}s")
+    logger.info(f"  Requested:  {len(tickers)}")
+    logger.info(f"  Analysed:   {len(all_results)}  "
+                f"(data fetch failed for {len(tickers) - len(all_results)})")
+    logger.info(f"  VCP found:  {len(detected)} "
+                f"({len(detected) / max(len(all_results), 1) * 100:.1f}% of analysed)")
+    logger.info(f"  Elapsed:    {elapsed:.1f}s")
     logger.info(f"{'=' * 60}")
 
-    if results:
+    if detected:
         logger.info("\nTop VCP Signals:")
-        for i, r in enumerate(results[:20], 1):
+        for i, r in enumerate(detected[:20], 1):
             logger.info(
                 f"  {i:2d}. {r['ticker']:6s} "
                 f"Q={r['vcp_quality'] * 100:.0f}%  "
@@ -115,9 +143,10 @@ def main():
             {
                 "timestamp": datetime.now().isoformat(),
                 "scanned": len(tickers),
-                "vcp_found": len(results),
-                "top_signals": results[:50],
-                "all_signals": results,
+                "analysed": len(all_results),
+                "vcp_found": len(detected),
+                "top_signals": detected[:50],
+                "all_signals": all_results,  # ← includes non-detected rows
             },
             f,
             indent=2,

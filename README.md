@@ -15,18 +15,20 @@ This package ships two complementary components:
 
 ## Status
 
-The detector has been running as a daily scan since May 2026. **The forward-return
-edge has not yet been validated.** See `docs/VALIDATION_REPORT.md` for the
-honest measurement and the prioritized next steps.
+The detector has been running as a daily scan since May 2026. **A 5.7-year
+historical replay (2021-2026, 117K ticker-dates across multiple market
+regimes) shows the detector has no edge — and is in fact anti-predictive.**
+See `docs/VALIDATION_REPORT_v2.md` for the full measurement and the
+prioritized next steps.
 
 | Stage          | Status                                  |
 |----------------|-----------------------------------------|
 | Detector       | ✅ Working — emits JSON daily           |
-| Validation     | ⚠️  Partial — only 60d forward window so far; result trails the S&P 500 |
-| Backtester     | ✅ Working — covers horizons 5–60 days |
-| Tests          | ✅ 24 tests passing, 55% line coverage  |
-| Lint / types   | ✅ ruff + mypy clean                    |
-| CI             | ✅ GitHub Actions (3.10 / 3.11 / 3.12)  |
+| Schema fix     | ✅ Both cohorts now in scan JSON        |
+| OHLCV cache    | ✅ 563 S&P 500 tickers, point-in-time   |
+| Replay harness | ✅ 117K signals in ~2 min               |
+| Calibration    | ✅ 16-combo sweep                        |
+| Edge validation | ❌ **No edge** — VCP trails S&P 500     |
 
 ## Quick Start
 
@@ -134,24 +136,32 @@ The detector uses a frozen `VCPConfig` dataclass — modify `VC` in
 ```
 vcp/
 ├── __init__.py
-├── run_scan.py         # CLI entry point (python3 vcp/run_scan.py)
+├── run_scan.py         # CLI: live scan → JSON (single date)
+├── cli_cache.py        # CLI: pre-cache S&P 500 OHLCV from yfinance
+├── cli_replay.py       # CLI: historical replay (point-in-time)
+├── cli_calibrate.py    # CLI: threshold sweep against replay signals
 ├── engine/
 │   ├── vcp_detector.py # VCP detection algorithm (canonical)
 │   └── config.py       # Backwards-compat re-export of VC
 ├── data/
-│   ├── loader.py       # Price data: yfinance / CSV cache
+│   ├── loader.py       # Live / cached OHLCV loader (canonicalized columns)
 │   └── __init__.py
+├── cache.py            # S&P 500 historical constituents + OHLCV cache
+├── replay.py           # Point-in-time replay harness
 ├── backtest.py         # Forward-return validation harness
-└── output/             # Scan results (gitignored)
+└── output/             # Scan results, replay outputs (gitignored)
 
 tests/
 ├── conftest.py         # Shared fixtures (synthetic VCP series)
 ├── test_detector.py    # Detector unit tests
 ├── test_backtest.py    # Backtester unit tests
-└── test_loader.py      # Data loader tests
+├── test_loader.py      # Data loader tests
+├── test_replay.py      # Cache + replay tests
+└── test_schema.py      # Scan JSON schema tests (detected + non-detected cohorts)
 
 docs/
-└── VALIDATION_REPORT.md  # Measured forward-return edge (or lack thereof)
+├── VALIDATION_REPORT.md     # v1: 60d forward return on 94 legacy signals
+└── VALIDATION_REPORT_v2.md  # v2: 5.7-year replay (117K signals) — no edge found
 ```
 
 ## VCP Detection Criteria
@@ -178,25 +188,44 @@ detector does not check those.
 
 ```bash
 source .venv/bin/activate
-pytest tests/ -v                # 24 tests
+pytest tests/ -v                # 36 tests
 ruff check vcp tests            # lint
-mypy vcp                        # type check
+mypy vcp                        # type check (11 source files)
 pytest --cov=vcp tests/         # coverage report
+```
+
+## Validation
+
+```bash
+# Pre-cache S&P 500 OHLCV (~30s)
+python3 -m vcp.cli_cache --start 2021-01-01 --end 2026-09-01 --workers 8
+
+# Run the 5-year replay (~2-3 min)
+python3 -m vcp.cli_replay --start 2021-01-01 --end 2026-09-01 \
+    --stride 5 --workers 8 --horizons 5,10,20,60 --stop-loss 0.10 \
+    --out-prefix output/replay_2021_2026_s5
+
+# Sweep thresholds (~1 min)
+python3 -m vcp.cli_calibrate --signals output/replay_2021_2026_s5_signals.json \
+    --horizons 20,60 --workers 8 --top 8 \
+    --out output/calibration.csv
 ```
 
 ## Known limitations
 
-- **No non-signal comparison group** — the daily scan JSON only emits detected
-  tickers, so we cannot measure filter effectiveness vs. a random sample. The
-  single biggest gap. Fix in `run_scan.py` (emit `all_signals` with both
-  detected and non-detected rows).
-- **Detector calibration is not data-driven.** The quality-threshold weights
-  are Minervini-tradition, not fit to historical breakouts.
-- **No multi-year historical replay.** Validation only covers one 60-day forward
-  window so far. The next deliverable should be a rolling-window replay harness
-  against local OHLCV cache.
-- **Hardcoded 3-phase windows.** A more robust implementation would detect
-  contraction pivots dynamically rather than slicing the lookback into thirds.
+- **The current detector has no edge.** The 5.7-year replay shows VCP signals
+  trail the S&P 500 by 2.4pp at 60d and underperform the non-detected cohort
+  at every horizon. See `docs/VALIDATION_REPORT_v2.md` for the full data.
+- **No multi-stage gate.** VCP is a *timing* signal, not a *selection* one.
+  The detector doesn't check Stage 2 trend template (price > 150/200-day MA,
+  52w-high proximity) or relative strength — so it flags setups across
+  failing trends, which dilutes the signal.
+- **Hardcoded 3-phase windows.** The (42, 42, 42) split assumes a 6-month
+  base. Real VCPs vary from 3 to 18 months; this misses longer bases and
+  flags shorter ones falsely.
+- **Calibration is one-pass.** The current sweep varies quality-threshold
+  and structural gates but doesn't revisit the wave-detection algorithm
+  itself. v3 work plan in `VALIDATION_REPORT_v2.md`.
 
 ## License
 
