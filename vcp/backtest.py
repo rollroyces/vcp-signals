@@ -71,6 +71,8 @@ class SignalOutcome:
     returns: dict[int, float | None]
     # horizon_days → exit_price (None if not enough history)
     exit_prices: dict[int, float | None]
+    # horizon_days → minimum close in [entry, entry+horizon] for stop-loss checks
+    min_in_window: dict[int, float | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -97,6 +99,30 @@ class BacktestResult:
                 thr = float(key.split("<")[1])
                 if o.score < thr:
                     out.append(r)
+        return out
+
+    def _grouped_rows(
+        self, key: str, horizon: int,
+    ) -> list[tuple[float, float, SignalOutcome]]:
+        """Return (entry_price, horizon_return_fraction, outcome) tuples
+        for outcomes matching ``key``. The horizon return is the simple
+        (exit/entry - 1); callers apply stops via min_in_window as needed.
+        """
+        out: list[tuple[float, float, SignalOutcome]] = []
+        for o in self.outcomes:
+            if o.entry_price is None or o.entry_price <= 0:
+                continue
+            r = o.returns.get(horizon)
+            if r is None:
+                continue
+            in_group = (
+                key == "all"
+                or (key == "signals" and o.is_signal)
+                or (key == "non_signals" and not o.is_signal)
+            )
+            if not in_group:
+                continue
+            out.append((float(o.entry_price), r / 100.0, o))
         return out
 
     @staticmethod
@@ -141,31 +167,54 @@ class BacktestResult:
     ) -> dict[str, float]:
         """Equal-weight portfolio return on a per-signal basis.
 
-        If stop_loss_pct is set, returns the worse of (1+horizon_return) and
-        (1-stop_loss_pct) — i.e. assume we exit at the stop if hit first.
-        Otherwise pure forward-return with no downside protection.
+        Stop-loss semantics:
+          * If ``stop_loss_pct`` is None → use the raw horizon return.
+          * Otherwise → take the WORSE of (a) the horizon return and
+            (b) the stop-loss level. We approximate (b) by checking
+            whether ``min_in_window`` is at or below the stop level; if
+            so, we cap the per-trade return at ``-stop_loss_pct``. This
+            is realistic for a strategy that exits on an intraday/close
+            stop but otherwise holds to the horizon.
+
+        Caveat: this is *not* a true time-series simulation — it does not
+        move cash from stopped trades into subsequent signals. For a
+        real portfolio with N concurrent positions, you'd need a
+        position-scheduler on top of this. This function answers the
+        simpler question: "what's the per-signal expected return if I
+        follow every signal with a stop?"
         """
-        rs = self._grouped_returns(group, horizon)
-        if not rs:
-            return {"n": 0, "mean": 0.0, "total": 0.0, "max_dd": 0.0}
+        rows = self._grouped_rows(group, horizon)
+        if not rows:
+            return {"n": 0, "mean_pct": 0.0, "total_return_pct": 0.0,
+                    "max_drawdown_pct": 0.0, "win_rate": 0.0}
+        # Apply stop-loss at the per-trade level: if the worst close in
+        # [entry, entry+horizon] is <= (1 - stop) * entry, the trade would
+        # have been stopped out and the realized return is -stop.
+        adjusted_rets: list[float] = []
+        for entry, horizon_ret_frac, outcome in rows:
+            r = horizon_ret_frac
+            if stop_loss_pct is not None:
+                min_close = outcome.min_in_window.get(horizon)
+                if min_close is not None and entry > 0:
+                    worst_frac = float(min_close) / entry - 1.0
+                    if worst_frac <= -abs(stop_loss_pct):
+                        r = -abs(stop_loss_pct)
+            adjusted_rets.append(r)
         # Geometric compounding
         eq = 1.0
         peak = 1.0
         max_dd = 0.0
-        for r in rs:
-            ret = r / 100.0  # pct → fraction
-            if stop_loss_pct is not None:
-                ret = max(ret, -abs(stop_loss_pct))
-            eq *= (1.0 + ret)
+        for r in adjusted_rets:
+            eq *= (1.0 + r)
             peak = max(peak, eq)
             dd = (eq - peak) / peak
             max_dd = min(max_dd, dd)
         return {
-            "n": len(rs),
-            "mean_pct": statistics.fmean(rs),
+            "n": len(adjusted_rets),
+            "mean_pct": statistics.fmean(adjusted_rets) * 100.0,
             "total_return_pct": (eq - 1.0) * 100.0,
             "max_drawdown_pct": max_dd * 100.0,
-            "win_rate": sum(1 for r in rs if r > 0) / len(rs),
+            "win_rate": sum(1 for r in adjusted_rets if r > 0) / len(adjusted_rets),
         }
 
 
@@ -267,10 +316,12 @@ class Backtester:
         hist = self.price_source.get(signal.ticker, signal.signal_date, end)
         returns: dict[int, float | None] = {}
         exit_prices: dict[int, float | None] = {}
+        min_in_window: dict[int, float | None] = {}
         if hist is None or len(hist) < 5:
             for h in self.horizons:
                 returns[h] = None
                 exit_prices[h] = None
+                min_in_window[h] = None
             return SignalOutcome(
                 ticker=signal.ticker,
                 signal_date=signal.signal_date,
@@ -280,6 +331,7 @@ class Backtester:
                 metadata=signal.metadata,
                 returns=returns,
                 exit_prices=exit_prices,
+                min_in_window=min_in_window,
             )
         # Build a calendar-indexed series of closes
         closes = hist["Close"].copy()
@@ -308,6 +360,7 @@ class Backtester:
             if target_idx >= len(closes):
                 returns[h] = None
                 exit_prices[h] = None
+                min_in_window[h] = None
             else:
                 exit_close = float(closes.iloc[target_idx])
                 exit_prices[h] = exit_close
@@ -315,6 +368,9 @@ class Backtester:
                     returns[h] = (exit_close / entry_close - 1.0) * 100.0
                 else:
                     returns[h] = None
+                # Intra-window minimum for stop-loss checks
+                window = closes.iloc[entry_idx:target_idx + 1]
+                min_in_window[h] = float(window.min()) if len(window) else None
         return SignalOutcome(
             ticker=signal.ticker,
             signal_date=signal.signal_date,
@@ -324,6 +380,7 @@ class Backtester:
             metadata=signal.metadata,
             returns=returns,
             exit_prices=exit_prices,
+            min_in_window=min_in_window,
         )
 
     def run(

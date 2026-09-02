@@ -84,7 +84,13 @@ def test_summary_groups_split_correctly():
 
 
 def test_simulated_portfolio_with_stop_loss_caps_drawdown():
-    """A portfolio with a stop loss should never lose more than the stop per trade."""
+    """A portfolio with a stop loss should never lose more than the stop per trade.
+
+    The FakeSource generates ~+0.2% daily drift with 2% vol; over 20 days
+    many windows will hit a -10% drawdown. With a 10% stop, no per-trade
+    loss should exceed -10%, and the max drawdown of the compounded curve
+    is bounded accordingly.
+    """
     src = FakePriceSource(drift_per_day=-0.01, vol=0.02)
     today = pd.Timestamp("2024-06-01")
     signals = [
@@ -94,9 +100,44 @@ def test_simulated_portfolio_with_stop_loss_caps_drawdown():
     bt = Backtester(src, horizons=[20])
     result = bt.run(signals)
     port = result.simulated_portfolio(horizon=20, stop_loss_pct=0.10)
-    # Max drawdown should be bounded by the geometric worst case of 10 losses
-    # of 10% each: (0.9)^10 - 1 ≈ -65%. Allow generous slack.
+    # Max drawdown is bounded by repeated -10% stops:
+    # worst case (1 - 0.10)^10 - 1 = -65%. Allow generous slack for randomness.
     assert port["max_drawdown_pct"] > -70.0
+    # And the portfolio's mean per-trade return reflects the stop:
+    # when raw 20d returns are worse than -10%, the simulated trade is
+    # recorded at exactly -10%. The mean should therefore be >= -10%.
+    assert port["mean_pct"] >= -10.0, (
+        f"portfolio mean {port['mean_pct']:.2f}% violates stop floor"
+    )
+
+
+def test_simulated_portfolio_stop_applies_intra_window_low():
+    """A trade that dips -30% in the middle then recovers to -10% by horizon
+    should be reported as a -10% loss (stopped out), not -10% (no different
+    from holding), because the WORSE of the two is what the trader experiences.
+    """
+    # Build a custom price source that simulates a V-shaped recovery
+    dates = pd.bdate_range("2024-06-03", periods=21)
+    # Day 0: 100, day 1: 95 (-5%), day 2: 85 (-15% intraday low → -15% trigger),
+    # days 3-20: recover to 95 (-5%), so 20d return is -5% but intra-window
+    # low is -15%. With a 10% stop, the trade is reported as -10%.
+    closes = [100, 95, 85, 87, 89, 91, 93, 92, 93, 94, 95, 94, 95, 93, 94, 95, 94, 95, 94, 95, 95]
+
+    class VShapeSource(PriceSource):
+        def get(self, ticker, start, end):
+            return pd.DataFrame({"Close": closes}, index=dates)
+
+    sig = SignalRecord("V", pd.Timestamp("2024-06-03"), 100.0, score=80.0)
+    bt = Backtester(VShapeSource(), horizons=[20])
+    result = bt.run([sig])
+    o = result.outcomes[0]
+    # 20d return without stop: -5%
+    assert abs(o.returns[20] - (-5.0)) < 0.1
+    # With 10% stop: capped at -10% (worse of -5% and -10%)
+    port_no_stop = result.simulated_portfolio(horizon=20, stop_loss_pct=None)
+    port_with_stop = result.simulated_portfolio(horizon=20, stop_loss_pct=0.10)
+    assert abs(port_no_stop["mean_pct"] - (-5.0)) < 0.1
+    assert abs(port_with_stop["mean_pct"] - (-10.0)) < 0.1
 
 
 def test_load_signals_from_legacy_schema(tmp_path):
