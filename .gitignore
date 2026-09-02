@@ -11,3 +11,4 @@ output/*.csv
 output/*.png
 *.log
 .coverage
+vcp_signals_latest.json
