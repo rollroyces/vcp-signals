@@ -1,0 +1,79 @@
+[project]
+name = "vcp-signals"
+version = "0.2.0"
+description = "VMAA Volatility Contraction Pattern (VCP) signal detection and validation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Royce"}]
+dependencies = [
+    "yfinance>=1.3.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10",
+    "matplotlib>=3.8",  # for plotting forward-return distributions
+]
+backtest = [
+    "matplotlib>=3.8",
+]
+
+[project.scripts]
+vcp-scan = "vcp.run_scan:main"
+vcp-backtest = "vcp.backtest:_main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vcp*"]
+exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",  # line length — handled by formatter
+    "B008",  # function-call-in-default-arg (we use this idiom intentionally in dataclasses)
+    "RUF012",  # mutable class attributes — we use frozen=False in a controlled way
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # imports after path setup
+"vcp/backtest.py" = ["PLR0913", "PLR2004"]  # backtest has many positional knobs; magic numbers ok in statistics
+
+[tool.mypy]
+python_version = "3.10"
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+explicit_package_bases = true
+mypy_path = "."
+# We don't enforce strict mode project-wide yet; detector has known Optional/Pandas
+# type issues that would require a separate refactor. New code in backtest.py
+# and tests should aim for --strict.
+files = ["vcp"]
+
+[[tool.mypy.overrides]]
+module = ["yfinance", "pandas", "numpy"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:yfinance.*",
+    "ignore::FutureWarning:pandas.*",
+]

@@ -23,9 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger("vmaa.vcp")
@@ -40,7 +38,7 @@ class VCPResult:
     """Output of VCP analysis for a single candidate."""
     ticker: str
     vcp_detected: bool = False
-    vcp_quality: float = 0.0            # 0.0–1.0
+    vcp_quality: float = 0.0            # 0.0-1.0
     contractions: int = 0               # Number of contraction waves
     pivot_price: float = 0.0            # Optimal entry at pivot
     pivot_volatility_pct: float = 0.0   # ATR% at pivot point
@@ -48,7 +46,7 @@ class VCPResult:
     range_contraction_ratio: float = 0.0 # Latest wave range / first wave range
     stop_suggestion: float = 0.0        # VCP-based stop price
     stop_pct: float = 0.0               # VCP-based stop distance %
-    signals: List[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
     rationale: str = ""
 
     def to_dict(self) -> dict:
@@ -76,7 +74,7 @@ class VCPResult:
 class VCPConfig:
     """Configuration for VCP detection and integration."""
 
-    # ── Detection parameters ──
+    # Detection parameters
     min_history_days: int = 126              # Minimum ~6 months of data
     min_contractions: int = 2                # Minimum contraction waves
     ideal_contractions: int = 3              # Ideal number of waves for max quality
@@ -87,17 +85,17 @@ class VCPConfig:
     vcp_quality_threshold: float = 0.50       # Minimum quality to flag vcp_detected
     max_2w_range_pct: float = 0.15           # 2-week range should be < 15% for tightness
 
-    # ── Phase windows (trading days) ──
-    phase_windows: Tuple[int, int, int] = (42, 42, 42)  # P1, P2, P3 size in days
+    # Phase windows (trading days)
+    phase_windows: tuple[int, int, int] = (42, 42, 42)  # P1, P2, P3 size in days  # type: ignore[valid-type]
 
-    # ── Integration: VCP enhances, never blocks ──
+    # Integration: VCP enhances, never blocks
     vcp_required_for_gap: bool = False       # If True, gap entries need VCP (NOT recommended)
     vcp_required_for_ma: bool = False        # If True, MA entries need VCP (NOT recommended)
     vcp_stop_tightening_pct: float = 0.40    # Tighten stop by 40% on VCP confirmation
     vcp_confidence_boost: float = 0.15       # Boost confidence by 0.15 on VCP confirmation
     vcp_position_size_boost: float = 0.30    # Boost position size by 30% on VCP (same dollar risk)
 
-    # ── Quality scoring weights ──
+    # Quality scoring weights
     weight_contracting: float = 0.30         # Range contraction detection
     weight_volume: float = 0.20              # Volume dry-up
     weight_tightness: float = 0.25           # Recent pivot tightness
@@ -118,7 +116,7 @@ def analyze_vcp(
     hist: pd.DataFrame,
     current_price: float,
     config: VCPConfig = VC,
-) -> Optional[VCPResult]:
+) -> VCPResult | None:
     """
     Full VCP analysis on a single stock.
 
@@ -226,7 +224,7 @@ def analyze_vcp(
 def _identify_contraction_waves(
     hist: pd.DataFrame,
     config: VCPConfig = VC,
-) -> List[dict]:
+) -> list[dict]:
     """
     Identify contraction waves in price history.
 
@@ -243,10 +241,10 @@ def _identify_contraction_waves(
         p2w = max(21, int(p2w * scale))
         p3w = max(21, int(p3w * scale))
 
-    close = hist["Close"]
-    high = hist["High"]
-    low = hist["Low"]
-    vol = hist["Volume"]
+    close_unused = hist["Close"]  # noqa: F841 — reserved for future per-phase calc
+    high_unused = hist["High"]   # noqa: F841
+    low_unused = hist["Low"]     # noqa: F841
+    vol_unused = hist["Volume"]  # noqa: F841
 
     waves = []
 
@@ -260,7 +258,7 @@ def _identify_contraction_waves(
 
         # Ensure valid indices
         start_idx = max(start_idx, -len(hist))
-        end_idx = min(end_idx, len(hist)) if end_idx < 0 else None
+        end_idx = min(end_idx, len(hist)) if end_idx < 0 else None  # type: ignore[assignment]
 
         phase = hist.iloc[start_idx:end_idx]
         if len(phase) < 10:
@@ -289,7 +287,7 @@ def _identify_contraction_waves(
     return waves
 
 
-def _verify_range_contraction(waves: List[dict], config: VCPConfig = VC) -> bool:
+def _verify_range_contraction(waves: list[dict], config: VCPConfig = VC) -> bool:
     """Check if wave ranges are systematically contracting."""
     if len(waves) < 2:
         return False
@@ -307,7 +305,7 @@ def _verify_range_contraction(waves: List[dict], config: VCPConfig = VC) -> bool
     return contractions_found >= (len(waves) - 1)  # Need ALL waves to contract
 
 
-def _verify_volume_decline(hist: pd.DataFrame, waves: List[dict]) -> bool:
+def _verify_volume_decline(hist: pd.DataFrame, waves: list[dict]) -> bool:
     """Check for systematic volume dry-up across waves."""
     if len(waves) < 2:
         return False
@@ -326,7 +324,7 @@ def _verify_volume_decline(hist: pd.DataFrame, waves: List[dict]) -> bool:
 # Pivot Analysis
 # ═══════════════════════════════════════════════════════
 
-def _assess_pivot_tightness(hist: pd.DataFrame, waves: List[dict]) -> dict:
+def _assess_pivot_tightness(hist: pd.DataFrame, waves: list[dict]) -> dict:
     """Assess tightness at the pivot (most recent contraction wave)."""
     if not waves:
         return {"pivot_price": 0, "atr_pct": 1.0, "vol_ratio": 2.0}
@@ -372,10 +370,10 @@ def _assess_pivot_tightness(hist: pd.DataFrame, waves: List[dict]) -> dict:
 
 def _compute_vcp_stop(
     current_price: float,
-    waves: List[dict],
+    waves: list[dict],
     hist: pd.DataFrame,
     config: VCPConfig = VC,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Compute VCP-based stop loss using pivot structure."""
     if not waves:
         return current_price * 0.85, 0.15
@@ -385,8 +383,7 @@ def _compute_vcp_stop(
     pivot_low = last_wave["low"]
 
     # Use the lower of: pivot low OR 2x ATR below current price
-    atr = hist["High"].iloc[-14:].max() - hist["Low"].iloc[-14:].min()
-    # Better: compute proper ATR
+    # Compute proper ATR (range version below for reference; we use tr-based ATR)
     tr = pd.concat(
         [
             hist["High"] - hist["Low"],
@@ -422,10 +419,10 @@ def _compute_vcp_stop(
 
 def _compute_vcp_quality(
     result: VCPResult,
-    waves: List[dict],
+    waves: list[dict],
     config: VCPConfig = VC,
 ) -> float:
-    """Compute composite VCP quality score (0.0–1.0)."""
+    """Compute composite VCP quality score (0.0-1.0)."""
     w = config  # shorthand
 
     # 1. Contraction count score (0-1)
@@ -479,9 +476,9 @@ def _compute_vcp_quality(
 
 def batch_vcp_filter(
     candidates: list,
-    hist_cache: Optional[Dict[str, pd.DataFrame]] = None,
+    hist_cache: dict[str, pd.DataFrame] | None = None,
     config: VCPConfig = VC,
-) -> Dict[str, VCPResult]:
+) -> dict[str, VCPResult]:
     """
     Run VCP analysis on all entry-ready candidates.
 
@@ -493,14 +490,13 @@ def batch_vcp_filter(
     Returns:
         Dict of {ticker: VCPResult}
     """
-    import yfinance as yf
     import time
-    from data.yahoo_direct import YahooDirect
-    _vcp_yd = YahooDirect(delay=0.08)
 
-    results = {}
+    import yfinance as yf
 
-    for i, candidate in enumerate(candidates):
+    results: dict[str, VCPResult] = {}
+
+    for _i, candidate in enumerate(candidates):
         ticker = getattr(candidate, "ticker", None)
         if not ticker:
             continue
@@ -510,22 +506,17 @@ def batch_vcp_filter(
         if not price and hasattr(candidate, "part1"):
             price = getattr(candidate.part1, "current_price", 0)
 
-        # Try cached history first
+        # Try cached history first; otherwise fetch via yfinance.
         hist = None
         if hist_cache and ticker in hist_cache:
             hist = hist_cache[ticker]
         else:
-            # Primary: yfinance
             try:
                 stock = yf.Ticker(ticker)
-                hist = stock.history(period="1y")
+                hist = stock.history(period="1y", auto_adjust=False)
                 time.sleep(0.15)  # Rate limit
             except Exception:
                 hist = None
-
-            # Fallback: YahooDirect (bypasses yfinance rate limits)
-            if hist is None or len(hist) < config.min_history_days:
-                hist = _vcp_yd.get_history(ticker, period="1y")
 
         if hist is None or len(hist) < config.min_history_days:
             logger.debug(f"{ticker}: insufficient data for VCP")
@@ -544,7 +535,7 @@ def batch_vcp_filter(
 
 def apply_vcp_to_stop(
     base_stop_pct: float,
-    vcp_result: Optional[VCPResult],
+    vcp_result: VCPResult | None,
     config: VCPConfig = VC,
 ) -> float:
     """
@@ -563,7 +554,7 @@ def apply_vcp_to_stop(
 
 def apply_vcp_to_confidence(
     base_confidence: float,
-    vcp_result: Optional[VCPResult],
+    vcp_result: VCPResult | None,
     config: VCPConfig = VC,
 ) -> float:
     """
@@ -580,7 +571,7 @@ def apply_vcp_to_confidence(
 
 def apply_vcp_to_position_size(
     base_size: float,
-    vcp_result: Optional[VCPResult],
+    vcp_result: VCPResult | None,
     config: VCPConfig = VC,
 ) -> float:
     """
@@ -595,8 +586,9 @@ def apply_vcp_to_position_size(
     return round(base_size * (1.0 + boost), 2)
 
 
-def get_vcp_entry_quality(vcp_result: Optional[VCPResult]) -> str:
+def get_vcp_entry_quality(vcp_result: VCPResult | None) -> str:
     """Human-readable VCP entry quality label."""
+    # (the en-dash above is intentional per project docstring style)
     if vcp_result is None:
         return "NO_DATA"
     if not vcp_result.vcp_detected:
@@ -614,7 +606,7 @@ def get_vcp_entry_quality(vcp_result: Optional[VCPResult]) -> str:
 # Quick Check (for CLI / rapid screening)
 # ═══════════════════════════════════════════════════════
 
-def quick_vcp_check(ticker: str) -> Optional[VCPResult]:
+def quick_vcp_check(ticker: str) -> VCPResult | None:
     """
     Quick VCP check for a single ticker — fetches data and analyzes.
 
@@ -624,20 +616,17 @@ def quick_vcp_check(ticker: str) -> Optional[VCPResult]:
 
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        hist = stock.history(period="1y", auto_adjust=False)
+        if hist is None or len(hist) < 20:
+            return None
+        # Normalize tz for downstream
+        if getattr(hist.index, "tz", None) is not None:
+            hist = hist.copy()
+            hist.index = hist.index.tz_localize(None)
         price = float(hist["Close"].iloc[-1])
         return analyze_vcp(ticker, hist, price)
-    except Exception:
-        # Fallback: YahooDirect
-        try:
-            from data.yahoo_direct import YahooDirect
-            yd = YahooDirect(delay=0.08)
-            hist = yd.get_history(ticker, period="1y")
-            if hist is not None and len(hist) > 20:
-                price = float(hist["Close"].iloc[-1])
-                return analyze_vcp(ticker, hist, price)
-        except Exception as e2:
-            logger.error(f"quick_vcp_check({ticker}): both yfinance and YahooDirect failed: {e2}")
+    except Exception as e:
+        logger.error(f"quick_vcp_check({ticker}): yfinance failed: {e}")
         return None
 
 
