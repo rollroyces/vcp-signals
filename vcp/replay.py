@@ -21,8 +21,12 @@ import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from vcp.trend import TrendConfig
 
 from vcp.backtest import SignalRecord
 from vcp.cache import (
@@ -62,8 +66,21 @@ def _analyze_one(
     ticker: str,
     as_of: pd.Timestamp,
     config: VCPConfig = VC,
+    trend_config: TrendConfig | None = None,
 ) -> SignalRecord | None:
-    """Run VCP analysis on cached OHLCV for ticker, treating as_of as 'today'."""
+    """Run VCP analysis on cached OHLCV for ticker, treating as_of as 'today'.
+
+    If ``trend_config`` is provided (and enabled), the trend-template gate is
+    applied as a *pre-filter*: stocks that fail the trend template are
+    recorded as `is_signal=False` with a `trend_blocked=True` marker in
+    metadata. This lets the replay emit rows for both VCP-detected names
+    and trend-template rejects, so downstream analysis can compare the two
+    cohorts.
+
+    For stocks that pass the trend template but fail VCP, the resulting
+    `is_signal` is False with `trend_passed=True, vcp_passed=False`.
+    """
+    from vcp.trend import evaluate as evaluate_trend
     hist_full = load_cached(ticker)
     if hist_full is None or len(hist_full) < 60:
         return None
@@ -71,6 +88,27 @@ def _analyze_one(
     hist = hist_full[hist_full.index <= as_of]
     if len(hist) < 60:
         return None
+    # Trend-template gate (optional)
+    trend_meta: dict = {}
+    if trend_config is not None and trend_config.enabled:
+        tr = evaluate_trend(ticker, as_of, config=trend_config)
+        if tr is None:
+            return None  # insufficient history for trend template
+        trend_meta = {
+            "trend_passed": tr.passes,
+            "trend_failures": tr.failures,
+            "trend_rs_avg": tr.rs_avg,
+            "trend_sma_200_slope": tr.sma_trend_slope,
+            "trend_pct_from_high": tr.pct_from_52w_high,
+        }
+        if not tr.passes:
+            # Emit a non-signal row tagged with trend_blocked=True
+            return SignalRecord(
+                ticker=ticker, signal_date=as_of, entry_price=float(hist["Close"].iloc[-1]),
+                score=0.0, is_signal=False,
+                metadata={"trend_blocked": True, "trend_failures": tr.failures,
+                          "trend_rs_avg": tr.rs_avg, **trend_meta},
+            )
     # The detector's `current_price` should be the close on as_of (or the
     # last available close on/before as_of).
     try:
@@ -81,6 +119,9 @@ def _analyze_one(
     if result is None:
         return None
     d = result.to_dict()
+    if trend_meta:
+        d.update(trend_meta)
+        d["trend_blocked"] = False
     return SignalRecord(
         ticker=ticker,
         signal_date=as_of,
@@ -99,6 +140,7 @@ def replay(
     workers: int = 8,
     progress: bool = True,
     universe_filter: Callable[[pd.Timestamp, frozenset], frozenset] | None = None,
+    trend_config: TrendConfig | None = None,
 ) -> list[SignalRecord]:
     """Run a full historical replay.
 
@@ -148,21 +190,24 @@ def replay(
     logger.info(
         f"Replay {start.date()} → {end.date()} ({len(dates)} dates, stride {stride_days}): "
         f"{len(jobs)} (date, ticker) jobs"
+        f"{', trend gate ON' if trend_config is not None and trend_config.enabled else ''}"
     )
 
     signals: list[SignalRecord] = []
     n = len(jobs)
     t0 = datetime.now()
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(_analyze_one, t, d, config): (d, t) for d, t in jobs}
+        futures = {ex.submit(_analyze_one, t, d, config, trend_config): (d, t) for d, t in jobs}
         for done, f in enumerate(as_completed(futures), 1):
             d, t = futures[f]
             if progress and (done % 1000 == 0 or done == n):
                 elapsed = (datetime.now() - t0).total_seconds()
                 sigs = sum(1 for s in signals if s.is_signal)
+                blocked = sum(1 for s in signals
+                              if s.metadata.get("trend_blocked"))
                 logger.info(
                     f"Replay: {done}/{n} ({done / max(elapsed, 0.001):.0f}/s, "
-                    f"{sigs} signals so far)"
+                    f"{sigs} signals, {blocked} trend-blocked)"
                 )
             try:
                 r = f.result()
@@ -173,9 +218,11 @@ def replay(
 
     elapsed = (datetime.now() - t0).total_seconds()
     detected = sum(1 for s in signals if s.is_signal)
+    blocked = sum(1 for s in signals if s.metadata.get("trend_blocked"))
     logger.info(
         f"Replay complete: {len(signals)} ticker-dates in {elapsed:.1f}s "
-        f"({detected} detected = {detected / max(len(signals), 1) * 100:.2f}%)"
+        f"({detected} VCP-detected = {detected / max(len(signals), 1) * 100:.2f}%, "
+        f"{blocked} trend-blocked = {blocked / max(len(signals), 1) * 100:.2f}%)"
     )
     return signals
 

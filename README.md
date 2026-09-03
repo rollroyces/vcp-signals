@@ -15,20 +15,24 @@ This package ships two complementary components:
 
 ## Status
 
-The detector has been running as a daily scan since May 2026. **A 5.7-year
-historical replay (2021-2026, 117K ticker-dates across multiple market
-regimes) shows the detector has no edge — and is in fact anti-predictive.**
-See `docs/VALIDATION_REPORT_v2.md` for the full measurement and the
-prioritized next steps.
+The full validation history: v1 (60d window, no control group) → v2 (5.7-year replay, no edge) → **v3 (A/B with Stage-2 trend gate, edge found)**. Current report is v3.
+
+A 5.7-year historical replay (2021-01 → 2026-09) shows:
+
+- **VCP detector alone:** anti-predictive. Per-trade mean +1.87% at 60d, hit 56.8%, Sharpe 0.13, excess vs S&P 500 = -2.4pp. 28 trades lost ≥30%. Not tradeable.
+- **Stage-2 trend gate + VCP:** first positive result. Per-trade mean **+3.30%** at 60d, hit **60.0%**, Sharpe **0.21**, excess vs S&P 500 = **+0.6pp**. **0 trades lost ≥30%.** Tradeable at ~48 trades/year.
+
+See `docs/VALIDATION_REPORT_v3.md` for the full A/B analysis and `docs/VALIDATION_REPORT_v2.md` for the baseline measurement.
 
 | Stage          | Status                                  |
 |----------------|-----------------------------------------|
 | Detector       | ✅ Working — emits JSON daily           |
 | Schema fix     | ✅ Both cohorts now in scan JSON        |
-| OHLCV cache    | ✅ 563 S&P 500 tickers, point-in-time   |
-| Replay harness | ✅ 117K signals in ~2 min               |
+| OHLCV cache    | ✅ 564 S&P 500 tickers + SPY, point-in-time |
+| Replay harness | ✅ 87K signals in ~10 min (with trend gate) |
+| Stage-2 trend gate | ✅ Built, integrated, validated      |
 | Calibration    | ✅ 16-combo sweep                        |
-| Edge validation | ❌ **No edge** — VCP trails S&P 500     |
+| **Edge**       | ✅ **Found at 60d with trend gate (+0.6pp vs SPX)** |
 
 ## Quick Start
 

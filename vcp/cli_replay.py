@@ -34,6 +34,7 @@ from vcp.backtest import (
 from vcp.cache import cache_dir
 from vcp.engine.vcp_detector import VC, VCPConfig
 from vcp.replay import replay
+from vcp.trend import TrendConfig
 
 
 def _apply_config_overrides(args: argparse.Namespace) -> VCPConfig:
@@ -78,6 +79,10 @@ def main() -> int:
     parser.add_argument("--ideal-pivot-atr-pct", type=float, default=None)
     parser.add_argument("--volume-dry-up-threshold", type=float, default=None)
     parser.add_argument("--contraction-ratio-threshold", type=float, default=None)
+    parser.add_argument("--trend-gate", action="store_true",
+                        help="Apply Stage-2 trend template (Minervini) as pre-filter")
+    parser.add_argument("--no-rs-check", action="store_true",
+                        help="Disable the relative-strength vs SPY check")
     args = parser.parse_args()
 
     start = pd.Timestamp(args.start)
@@ -89,8 +94,15 @@ def main() -> int:
                 f"contraction_ratio={config.contraction_ratio_threshold}")
 
     # 1. Replay: generate signal list
+    trend_cfg = None
+    if args.trend_gate:
+        trend_cfg = TrendConfig(enabled=True)
+        if args.no_rs_check:
+            trend_cfg = TrendConfig(enabled=True, rs_periods=())
+        logger.info(f"Trend gate ENABLED (rs_check={'OFF' if args.no_rs_check else 'ON'})")
     signals = replay(start, end, stride_days=args.stride,
-                     config=config, workers=args.workers, progress=True)
+                     config=config, workers=args.workers, progress=True,
+                     trend_config=trend_cfg)
     if not signals:
         logger.error("No signals from replay")
         return 1
