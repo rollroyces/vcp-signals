@@ -4,6 +4,14 @@
 **Author:** Hermes (quantitative review)
 **Scope:** Forward-return validation of the vcp-signals scanner against the only dataset we have enough forward history for: the 94 S&P-500 signals in `vcp_signals_latest.json` (signal date 2026-05-20, ~110 calendar days elapsed since).
 
+> **Status note (2026-09-13):** This report is **preliminary**. All three next steps proposed below (schema fix, historical replay, threshold calibration) have been completed in subsequent reports:
+> - **Schema fix** — committed in commit `04ad7eb`; the scan JSON now emits both detected and non-detected rows.
+> - **Historical replay** — `vcp/replay.py` + `vcp/cli_replay.py`; full 5.7-year (2021-2026) replay in ~10 minutes.
+> - **Trend gate + calibration** — see `docs/VALIDATION_REPORT_v3.md`. The bare VCP detector is anti-predictive (this report's suspicion confirmed); the trend-gated VCP detector has Sharpe 0.21 and excess +0.6pp vs S&P 500.
+> - **Parquet + xarray layer** — `docs/PARQUET_XARRAY_REPORT.md`.
+>
+> This report is kept for historical context. **For the current edge picture, read `VALIDATION_REPORT_v3.md`.**
+
 ---
 
 ## TL;DR

@@ -3,6 +3,8 @@
 **Date:** 2026-09-13
 **Scope:** Adds parquet price-source, xarray aggregation, and CSV→parquet cache converter. No change to the v3 detector, trend gate, or replay signals — this layer is orthogonal.
 
+> **Context.** This is the fourth validation report. See `docs/VALIDATION_REPORT.md` (v1), `docs/VALIDATION_REPORT_v2.md`, and `docs/VALIDATION_REPORT_v3.md` for the prior validation history. The **edge story** is in v3 (Stage-2 trend gate + VCP detector: per-trade mean +3.30%, hit 60.0%, Sharpe 0.21, +0.6pp vs S&P 500). This report covers the **storage and aggregation infrastructure** built on top of that — it does not change the detector or the edge measurement.
+
 ## TL;DR
 
 - **Parquet is faster per-read but slower in practice at our current scale.** A single parquet read is 2x faster than CSV (0.74ms vs 1.39ms), but at the scale we run (82K signals × 500 unique tickers), the per-file open overhead dominates and parquet replay takes ~10 minutes vs CSV's ~9.5. The cache footprint is 2.2x smaller (40 MB vs 91 MB), which is the real win for disk-constrained environments.
@@ -151,3 +153,5 @@ print(f"60d mean for trend-passed: {trend_passed['return_pct'].mean():.2f}%")
 1. **Daily-stride replay** (~5x more signals, would actually stress-test parquet wins).
 2. **Multi-strategy replay** — run multiple detectors in one pass, share the cache + xarray aggregation.
 3. **Position-sizing simulation** — replace the equal-weight compounded portfolio with a fixed-capital base.
+4. **Out-of-sample validation** — see `docs/VALIDATION_REPORT_v3.md` § "What we still don't know" — the v3 edge is in-sample on 2021-2026; replaying on a different window (e.g. 2016-2020 bear-market years) is the highest-value next experiment. The parquet layer here makes that run feasible (faster per-read + smaller disk).
+5. **Pivot-detection rewrite of the VCP detector** — also flagged in v3. The current detector's strict monotonic contraction check disqualifies some real VCPs; a pivot-based algorithm would catch more. The v4 infrastructure (xarray aggregation, parquet cache) makes A/B-testing detector revisions cheap.

@@ -158,6 +158,7 @@ The compounded totals are still absurd because of the equal-weight-1904-trades m
 3. **Survivorship-bias-free constituents for 1996-2010.** The constituents dataset starts 1996-01-02 but with some sparse updates in the early years. The replay starts 2021-01-01 to avoid that risk; the long-run robustness of the trend gate on the 1996-2020 window is untested.
 4. **Correlation with index.** The trend gate requires RS > 0 vs SPY, which means the cohort should be slightly anti-correlated with the index during drawdowns. We didn't measure this directly.
 5. **Daily replay.** Current stride is 5 trading days. Daily would give ~5x the sample size but at 5x the runtime. Probably worth running once for a more precise Sharpe estimate.
+6. **Pivot-detection rewrite (v4 backlog).** The current detector's strict monotonic contraction check disqualifies some real VCPs where one wave expands slightly. A pivot-based algorithm that detects contraction patterns dynamically (vs the fixed (42,42,42) window) is in the v4 backlog — see `docs/PARQUET_XARRAY_REPORT.md`.
 
 ---
 

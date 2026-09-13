@@ -6,6 +6,10 @@
 **Stride:** Every 5 trading days (~249 replay dates)
 **Total ticker-date analyses:** 115,652
 
+> **Status note (2026-09-13):** All five items in the "Suggested v3 work plan" below have been completed. See:
+> - `docs/VALIDATION_REPORT_v3.md` — Stage-2 trend gate added; bare VCP's −0.97pp excess flips to **+0.6pp** vs S&P 500 at 60d.
+> - `docs/PARQUET_XARRAY_REPORT.md` — parquet price source + xarray aggregation layer; per-file 2x faster read, 2.2x smaller disk, parity verified vs CSV.
+
 ## TL;DR
 
 The VCP detector, in its current form, **does not predict forward returns** and in fact **selects against winners** over the 2021-2026 window. Across 5 horizons (5/10/20/60 trading days), every calibration of the detector produces *negative excess return* versus both (a) the S&P 500 at the same dates, and (b) the non-detected S&P 500 cohort.
