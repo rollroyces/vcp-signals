@@ -68,10 +68,12 @@ python3 vcp/backtest.py --signals output/vcp_signals_latest.json \
 | Group | Installs | When to use |
 |---|---|---|
 | `dev` | `ruff==0.16.5`, `mypy==2.3.1`, `pytest`, `pytest-cov`, `matplotlib` | Testing and CI; pinned to the local + CI matrix |
-| `backtest` | `matplotlib`, `xarray>=2024.1`, `pyarrow>=15.0` | Optional plotting and columnar backtest outputs |
-| `parquet` | `xarray>=2024.1`, `pyarrow>=15.0`, `dask>=2024.1` | Parallel parquet reads for very large backtests (≥1M signals) |
+| `backtest` | `matplotlib`, `xarray>=2024.1`, `pyarrow>=15.0` | xarray aggregation (`BacktestResult.to_xarray()`) and columnar backtest outputs |
+| `parquet` | `xarray>=2024.1`, `pyarrow>=15.0`, `dask>=2024.1` | Parquet price source for >1M-signal cohorts; convert CSVs first with `vcp.cli_cache --convert-only` |
 
 Default `dependencies` already includes `pyarrow>=15.0` (used by the S&P 500 constituents parquet cache); `parquet` adds `dask` for parallel IO.
+
+**Parquet is faster per-read (2x) and smaller on disk (2.2x) than CSV**, but at the current scale (87K signals / 500 unique tickers / 165 KB per file), the per-file open overhead makes it ~5% slower in wall time. The parquet path is **infrastructure for future scale** — switch to it when cohorts exceed ~1M signals or files exceed ~10 MB. See `docs/PARQUET_XARRAY_REPORT.md` for benchmarks and migration instructions.
 
 ## How the Detector Works
 

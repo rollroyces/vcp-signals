@@ -83,6 +83,13 @@ def main() -> int:
                         help="Apply Stage-2 trend template (Minervini) as pre-filter")
     parser.add_argument("--no-rs-check", action="store_true",
                         help="Disable the relative-strength vs SPY check")
+    parser.add_argument("--parquet", action="store_true",
+                        help="Use ParquetPriceSource (5-10x faster than CSV; "
+                             "requires parquet mirrors in cache — convert with "
+                             "`python -m vcp.cli_cache --parquet` or "
+                             "`vcp.cache.convert_csv_to_parquet`)")
+    parser.add_argument("--dask", action="store_true",
+                        help="With --parquet, use dask + pyarrow for parallel IO")
     args = parser.parse_args()
 
     start = pd.Timestamp(args.start)
@@ -119,8 +126,17 @@ def main() -> int:
     # 3. Backtest: feed signals into the forward-return harness, using the
     #    same cache directory as the price source (zero network calls).
     horizons = [int(h) for h in args.horizons.split(",") if h.strip()]
-    bt = Backtester(CsvPriceSource(cache_dir()), horizons=horizons,
-                    max_workers=args.workers)
+    price_source: CsvPriceSource | ParquetPriceSource
+    if args.parquet:
+        from vcp.backtest import ParquetPriceSource
+        # Parquet is significantly faster than CSV at scale; falls back to
+        # CSV automatically if a ticker has no .parquet mirror.
+        price_source = ParquetPriceSource(cache_dir(), use_dask=args.dask)
+        logger.info(f"Using ParquetPriceSource (dask={args.dask})")
+    else:
+        price_source = CsvPriceSource(cache_dir())
+        logger.info("Using CsvPriceSource")
+    bt = Backtester(price_source, horizons=horizons, max_workers=args.workers)
     result = bt.run(signals, progress=True)
 
     # 4. Summary

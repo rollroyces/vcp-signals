@@ -45,6 +45,13 @@ def ohlcv_path(ticker: str) -> str:
     return os.path.join(cache_dir(), f"{ticker.upper()}.csv")
 
 
+def ohlcv_parquet_path(ticker: str) -> str:
+    """Path to the parquet mirror of the CSV cache (created by ``fetch_and_cache``
+    when ``write_parquet=True``). Falls back to CSV reads when absent.
+    """
+    return os.path.join(cache_dir(), f"{ticker.upper()}.parquet")
+
+
 def constituents_path() -> str:
     return os.path.join(cache_dir(), "_sp500_constituents.parquet")
 
@@ -180,16 +187,22 @@ def fetch_and_cache(
     ticker: str,
     period: str = "5y",
     force: bool = False,
+    write_parquet: bool = False,
 ) -> str | None:
-    """Fetch OHLCV for one ticker, write to cache. Returns path or None.
+    """Fetch OHLCV for one ticker, write to cache. Returns CSV path or None.
 
     Cache hit: skip fetch entirely. This is the hot path during replay —
     we touch thousands of (ticker, date) pairs but only ~500 distinct
     tickers, so the second pass is fully offline.
+
+    If ``write_parquet=True``, a parquet mirror is written alongside the
+    CSV (same row order, same index). Parquet reads are typically 5-10x
+    faster than CSV on this scale and are required for the
+    ``ParquetPriceSource`` to use them.
     """
-    path = ohlcv_path(ticker)
-    if not force and os.path.exists(path):
-        return path
+    csv_path = ohlcv_path(ticker)
+    if not force and os.path.exists(csv_path):
+        return csv_path
 
     try:
         import yfinance as yf
@@ -201,8 +214,13 @@ def fetch_and_cache(
             hist = hist.copy()
             hist.index = hist.index.tz_localize(None)
         os.makedirs(cache_dir(), exist_ok=True)
-        hist.to_csv(path)
-        return path
+        hist.to_csv(csv_path)
+        if write_parquet:
+            try:
+                hist.to_parquet(ohlcv_parquet_path(ticker))
+            except Exception as e:
+                logger.debug(f"parquet write {ticker} failed (non-fatal): {e}")
+        return csv_path
     except Exception as e:
         logger.debug(f"yfinance fetch {ticker} failed: {e}")
         return None
@@ -214,14 +232,22 @@ def fetch_many(
     workers: int = 8,
     force: bool = False,
     progress: bool = True,
+    write_parquet: bool = False,
 ) -> dict[str, str | None]:
-    """Parallel fetch + cache. Returns {ticker: path_or_None}."""
+    """Parallel fetch + cache. Returns {ticker: csv_path_or_None}.
+
+    If ``write_parquet=True``, also writes a parquet mirror of each ticker's
+    OHLCV (used by ``ParquetPriceSource`` for faster backtests).
+    """
     ticker_list = [t.upper() for t in tickers]
     n = len(ticker_list)
     out: dict[str, str | None] = {}
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(fetch_and_cache, t, period, force): t for t in ticker_list}
+        futures = {
+            ex.submit(fetch_and_cache, t, period, force, write_parquet): t
+            for t in ticker_list
+        }
         for done, f in enumerate(as_completed(futures), 1):
             ticker = futures[f]
             if progress and (done % 50 == 0 or done == n):
@@ -286,9 +312,74 @@ def cache_stats() -> dict:
         os.path.join(base, files[0]),
         parse_dates=["Date"], index_col="Date",
     ).tail(1)
+    parquet_files = [f for f in os.listdir(base) if f.endswith(".parquet")]
+    parquet_sizes = sum(os.path.getsize(os.path.join(base, f)) for f in parquet_files)
     return {
         "ticker_count": len(files),
+        "parquet_count": len(parquet_files),
         "oldest": str(sample.index[0].date()),
         "newest": str(last.index[0].date()),
         "size_mb": round(sizes / (1024 * 1024), 1),
+        "parquet_mb": round(parquet_sizes / (1024 * 1024), 1),
     }
+
+
+def convert_csv_to_parquet(tickers: Iterable[str] | None = None,
+                            workers: int = 8,
+                            progress: bool = True) -> dict[str, bool]:
+    """Convert existing CSV cache files to parquet mirrors.
+
+    Use this once after upgrading to enable ``ParquetPriceSource`` without
+    re-fetching from yfinance. Idempotent — already-parquet files are
+    skipped. Returns `` ``_`` per ticker.
+    """
+    base = cache_dir()
+    if not os.path.isdir(base):
+        return {}
+
+    if tickers is None:
+        target_files = [f for f in os.listdir(base) if f.endswith(".csv")]
+        target_tickers = [f[:-4] for f in target_files]
+    else:
+        target_tickers = [t.upper() for t in tickers]
+        target_files = [f"{t}.csv" for t in target_tickers]
+
+    n = len(target_tickers)
+    out: dict[str, bool] = {}
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {
+            ex.submit(_convert_one, ticker): ticker
+            for ticker, fn in zip(target_tickers, target_files, strict=False)
+        }
+        for done, f in enumerate(as_completed(futures), 1):
+            ticker = futures[f]
+            if progress and (done % 50 == 0 or done == n):
+                elapsed = time.time() - t0
+                done_ok = sum(1 for v in out.values() if v)
+                logger.info(
+                    f"CSV→parquet: {done}/{n} "
+                    f"({done / elapsed:.0f}/s, {done_ok} converted)"
+                )
+            try:
+                out[ticker] = f.result()
+            except Exception as e:
+                logger.debug(f"convert {ticker} failed: {e}")
+                out[ticker] = False
+    return out
+
+
+def _convert_one(ticker: str) -> bool:
+    """Read CSV cache, write parquet. Returns success bool."""
+    csv = ohlcv_path(ticker)
+    par = ohlcv_parquet_path(ticker)
+    if not os.path.exists(csv) or os.path.exists(par):
+        return os.path.exists(par)
+    try:
+        df = pd.read_csv(csv, parse_dates=["Date"], index_col="Date")
+        df.sort_index(inplace=True)
+        df.to_parquet(par)
+        return True
+    except Exception as e:
+        logger.debug(f"convert {ticker}: {e}")
+        return False

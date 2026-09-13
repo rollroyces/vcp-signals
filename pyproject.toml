@@ -53,7 +53,7 @@ exclude = ["tests*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
@@ -68,7 +68,7 @@ ignore = [
 "vcp/backtest.py" = ["PLR0913", "PLR2004"]  # backtest has many positional knobs; magic numbers ok in statistics
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 strict_optional = true
 warn_unused_ignores = true
 warn_redundant_casts = true

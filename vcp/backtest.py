@@ -125,6 +125,58 @@ class BacktestResult:
             out.append((float(o.entry_price), r / 100.0, o))
         return out
 
+    def to_xarray(self):
+        """Convert outcomes into a labelled xarray.Dataset.
+
+        Dimensions: (row, horizon). Coordinates include the cohort flags
+        (is_signal, trend_passed, trend_blocked) and metadata (ticker,
+        signal_date, score) so downstream analyses can slice by any
+        combination. Returns are stored as percentages.
+
+        Requires the optional ``xarray`` dependency (see ``pip install
+        '.[backtest]'``). Returns None if xarray is unavailable.
+        """
+        try:
+            import xarray as xr
+        except ImportError:
+            logger.warning(
+                "xarray not installed; skipping to_xarray(). "
+                "Install with: pip install '.[backtest]'"
+            )
+            return None
+
+        rows = []
+        for o in self.outcomes:
+            for h in self.horizons:
+                ret = o.returns.get(h)
+                if ret is None:
+                    continue
+                meta = o.metadata or {}
+                rows.append({
+                    "row_id": len(rows),
+                    "ticker": o.ticker,
+                    "signal_date": o.signal_date,
+                    "horizon": h,
+                    "score": o.score,
+                    "is_signal": bool(o.is_signal),
+                    "trend_passed": bool(meta.get("trend_passed", True)),
+                    "trend_blocked": bool(meta.get("trend_blocked", False)),
+                    "return_pct": ret,
+                    "min_in_window_pct": (
+                        (o.min_in_window.get(h) / o.entry_price - 1.0) * 100.0
+                        if o.entry_price and o.min_in_window.get(h) is not None
+                        else float("nan")
+                    ),
+                })
+        if not rows:
+            return xr.Dataset(
+                coords={"row_id": [], "horizon": []},
+                data_vars={},
+            )
+        import pandas as pd
+        df = pd.DataFrame(rows).set_index(["row_id", "horizon"])
+        return xr.Dataset.from_dataframe(df)
+
     @staticmethod
     def _stats(rs: list[float]) -> dict[str, float]:
         if not rs:
@@ -287,6 +339,62 @@ class CsvPriceSource(PriceSource):
                 except Exception as e:
                     logger.debug(f"{ticker}: csv read failed: {e}")
         return None
+
+
+class ParquetPriceSource(PriceSource):
+    """Parquet-backed source, falls back to CSV when no parquet mirror exists.
+
+    The parquet mirror is written by ``vcp.cache.fetch_and_cache(write_parquet=True)``
+    or ``vcp.cache.convert_csv_to_parquet()``. Once present, reads are typically
+    5-10x faster than CSV on the scale we care about (>=1M signal cohorts).
+
+    For very large cohorts, pass ``use_dask=True`` to load parquet via
+    dask + the pyarrow engine. Each ``get()`` call still returns a
+    single ticker's frame as a pandas DataFrame (the backtester is
+    per-ticker), but dask handles the read + filter, which matters
+    when the underlying files are large.
+    """
+
+    def __init__(self, root_dir: str, use_dask: bool = False):
+        self.root_dir = root_dir
+        self.use_dask = use_dask
+
+    def get(self, ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame | None:
+        import os
+        par = f"{self.root_dir}/{ticker.upper()}.parquet"
+        csv = f"{self.root_dir}/{ticker.upper()}.csv"
+        if os.path.exists(par):
+            try:
+                df = _read_parquet_dask(par) if self.use_dask else pd.read_parquet(par)
+                if not isinstance(df.index, pd.DatetimeIndex):
+                    if "Date" in df.columns:
+                        df = df.set_index("Date")
+                    elif "date" in df.columns:
+                        df = df.set_index("date")
+                    df.index = pd.to_datetime(df.index)
+                df = df.sort_index()
+                return df.loc[start - timedelta(days=10): end + timedelta(days=10)]
+            except Exception as e:
+                logger.debug(f"{ticker}: parquet read failed ({e}); falling back to CSV")
+        # Fallback: read CSV
+        if os.path.exists(csv):
+            try:
+                df = pd.read_csv(csv, parse_dates=["Date"], index_col="Date")
+                df = df.sort_index()
+                return df.loc[start - timedelta(days=10): end + timedelta(days=10)]
+            except Exception as e:
+                logger.debug(f"{ticker}: csv fallback failed: {e}")
+        return None
+
+
+def _read_parquet_dask(path: str) -> pd.DataFrame:
+    """Read a parquet file via dask; compute() materialises to pandas.
+
+    Imported lazily so this module doesn't require dask at import time
+    unless ``use_dask=True`` is set.
+    """
+    import dask.dataframe as dd
+    return dd.read_parquet(path, engine="pyarrow").compute()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -482,6 +590,13 @@ def _main():
     parser.add_argument("--out", default="", help="Optional output CSV path for the summary table")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--stop-loss", type=float, default=None, help="e.g. 0.10 = 10%% downside cap")
+    parser.add_argument("--cache-dir", default=None,
+                        help="Use local CSV/parquet cache as the price source "
+                             "(default: live yfinance). Required for offline replay.")
+    parser.add_argument("--parquet", action="store_true",
+                        help="With --cache-dir, use ParquetPriceSource (5-10x faster)")
+    parser.add_argument("--dask", action="store_true",
+                        help="With --parquet, use dask for parallel IO")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -493,7 +608,17 @@ def _main():
         return
 
     horizons = [int(h) for h in args.horizons.split(",") if h.strip()]
-    bt = Backtester(YahooPriceSource(), horizons=horizons, max_workers=args.workers)
+    if args.cache_dir:
+        if args.parquet:
+            price_source = ParquetPriceSource(args.cache_dir, use_dask=args.dask)
+            logger.info(f"Using ParquetPriceSource (dask={args.dask})")
+        else:
+            price_source = CsvPriceSource(args.cache_dir)
+            logger.info("Using CsvPriceSource")
+    else:
+        price_source = YahooPriceSource()
+        logger.info("Using YahooPriceSource (live)")
+    bt = Backtester(price_source, horizons=horizons, max_workers=args.workers)
     result = bt.run(signals, progress=True)
     summary = result.summary()
     print("\n=== Forward-return summary ===")
