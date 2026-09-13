@@ -40,7 +40,11 @@ See `docs/VALIDATION_REPORT_v3.md` for the full A/B analysis and `docs/VALIDATIO
 # Create venv and install
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+# Base install — everything you need for scan + backtest + tests
+pip install -e ".[dev,backtest]"
+
+# Optional: parquet-accelerated backtests for very large cohorts (1M+ signals)
+pip install -e ".[parquet]"
 
 # Scan specific tickers
 python3 vcp/run_scan.py --tickers AAPL,MSFT,NVDA
@@ -58,6 +62,16 @@ python3 vcp/backtest.py --signals output/vcp_signals_latest.json \
                         --stop-loss 0.10 \
                         --out output/validation.csv
 ```
+
+### Optional dependency groups
+
+| Group | Installs | When to use |
+|---|---|---|
+| `dev` | `ruff==0.16.5`, `mypy==2.3.1`, `pytest`, `pytest-cov`, `matplotlib` | Testing and CI; pinned to the local + CI matrix |
+| `backtest` | `matplotlib`, `xarray>=2024.1`, `pyarrow>=15.0` | Optional plotting and columnar backtest outputs |
+| `parquet` | `xarray>=2024.1`, `pyarrow>=15.0`, `dask>=2024.1` | Parallel parquet reads for very large backtests (≥1M signals) |
+
+Default `dependencies` already includes `pyarrow>=15.0` (used by the S&P 500 constituents parquet cache); `parquet` adds `dask` for parallel IO.
 
 ## How the Detector Works
 

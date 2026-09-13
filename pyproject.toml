@@ -15,14 +15,24 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "ruff>=0.4.0",
-    "mypy>=1.10",
+    # Pin to versions verified by the local + CI matrix. Bump deliberately.
+    "ruff==0.16.5",     # matches CI (Ubuntu 24.04, Python 3.10/3.11/3.12)
+    "mypy==2.3.1",      # last 2.x with stable pandas-stubs handling
+    "pytest>=8.0,<10",  # pytest 9 dropped some legacy plugins we don't use
+    "pytest-cov>=5.0",
     "matplotlib>=3.8",  # for plotting forward-return distributions
 ]
 backtest = [
     "matplotlib>=3.8",
+    "xarray>=2024.1",  # for columnar / labelled backtest outputs (optional)
+    "pyarrow>=15.0",   # already required, restated here for the extra group
+]
+parquet = [
+    # Fast OHLCV backtests via parquet (replaces CSV reads when present).
+    # Use this group when you have ~1M+ signal cohorts to backtest.
+    "xarray>=2024.1",
+    "pyarrow>=15.0",
+    "dask>=2024.1",     # parallel parquet reads for very large backtests
 ]
 
 [project.scripts]
